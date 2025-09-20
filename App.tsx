@@ -55,6 +55,7 @@ const App: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [isLoading]);
 
+
   const handleSearch = useCallback(async () => {
     if (!forestName.trim()) {
       setError('Please enter a forest name.');

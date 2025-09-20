@@ -5,7 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ForestWatch AI</title>
-    <link rel="stylesheet" href="/styles/index.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.20.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.2.1"
+  }
+}
+</script>
 <style>
   @keyframes fade-in {
     from { opacity: 0; transform: translateY(-10px); }
@@ -24,20 +35,6 @@
     animation: fade-in-out linear;
   }
 </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.1.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "recharts": "https://aistudiocdn.com/recharts@^3.2.1",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.20.0",
-    "vite": "https://aistudiocdn.com/vite@^7.1.6",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.3",
-    "@netlify/functions": "https://aistudiocdn.com/@netlify/functions@^4.2.5"
-  }
-}
-</script>
 </head>
   <body class="bg-gray-50 dark:bg-gray-900">
     <div id="root"></div>
