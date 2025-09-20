@@ -22,6 +22,7 @@ export interface DeforestationData {
   conclusion: string;
   areaLost: string; // e.g., "approx. 15,000 sq km"
   timePeriod: string; // e.g., "2015-2023"
+  estimatedInitialArea: string; // e.g., "approx. 6,000,000 sq km"
   chartData: ChartDataPoint[];
   sources: DataSource[];
 }

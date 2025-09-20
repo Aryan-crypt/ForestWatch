@@ -15,11 +15,18 @@ export const DeforestationChart: React.FC<DeforestationChartProps> = ({ data }) 
           top: 5,
           right: 20,
           left: 10,
-          bottom: 5,
+          bottom: 30,
         }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />
-        <XAxis dataKey="year" stroke="rgb(156 163 175)" />
+        <XAxis 
+          dataKey="year" 
+          stroke="rgb(156 163 175)" 
+          angle={-45} 
+          textAnchor="end"
+          interval={0}
+          tick={{ fontSize: 12 }}
+        />
         <YAxis stroke="rgb(156 163 175)" />
         <Tooltip 
           contentStyle={{ 

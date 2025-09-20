@@ -55,7 +55,6 @@ const App: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [isLoading]);
 
-
   const handleSearch = useCallback(async () => {
     if (!forestName.trim()) {
       setError('Please enter a forest name.');
@@ -81,7 +80,7 @@ const App: React.FC = () => {
     }
   }, [forestName]);
 
-  const handleGenerateVisuals = useCallback(async () => {
+  const handleGenerateVisuals = useCallback(async (startYear: number, endYear: number) => {
     if (!deforestationData) return;
 
     setIsGeneratingVisuals(true);
@@ -89,7 +88,7 @@ const App: React.FC = () => {
     setVisualEvidenceImageUrl(null);
 
     try {
-      const imageUrl = await generateVisualEvidence(deforestationData);
+      const imageUrl = await generateVisualEvidence(deforestationData, startYear, endYear);
       setVisualEvidenceImageUrl(imageUrl);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred during image generation.';

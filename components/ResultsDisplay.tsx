@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { DeforestationData } from '../types';
 import { DeforestationStatus } from '../types';
 import { DeforestationChart } from './DeforestationChart';
 
 interface ResultsDisplayProps {
   data: DeforestationData;
-  onGenerateVisuals: () => void;
+  onGenerateVisuals: (startYear: number, endYear: number) => void;
   isGeneratingVisuals: boolean;
   visualEvidenceImageUrl: string | null;
   visualsError: string | null;
@@ -41,6 +41,43 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
   deepSearchError,
   onOpenVisualsModal
 }) => {
+  const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState<boolean>(false);
+  
+  const availableYears = data.chartData?.map(d => d.year).sort((a, b) => a - b) || [];
+  const [startYear, setStartYear] = useState<number>(availableYears[0]);
+  const [endYear, setEndYear] = useState<number>(availableYears[availableYears.length - 1]);
+
+  useEffect(() => {
+    if (availableYears.length > 0) {
+      setStartYear(availableYears[0]);
+      setEndYear(availableYears[availableYears.length - 1]);
+    }
+  }, [data.chartData]);
+
+  const handleStartYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newStartYear = parseInt(e.target.value, 10);
+    setStartYear(newStartYear);
+    if (newStartYear >= endYear) {
+      const newEndYear = availableYears.find(y => y > newStartYear);
+      setEndYear(newEndYear || availableYears[availableYears.length - 1]);
+    }
+  };
+
+  const handleEndYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newEndYear = parseInt(e.target.value, 10);
+    if (newEndYear > startYear) {
+      setEndYear(newEndYear);
+    }
+  };
+  
+  const isCustomYearsValid = startYear < endYear;
+
+  const handleGenerateClick = () => {
+    if (isCustomYearsValid) {
+      onGenerateVisuals(startYear, endYear);
+    }
+  };
+
   return (
     <div className="w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
@@ -90,19 +127,64 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
         
         <div className="border-t dark:border-gray-700 pt-6">
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-3">Advanced Tools</h3>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col gap-4">
             {!visualEvidenceImageUrl && !isGeneratingVisuals && (
-              <button
-                onClick={onGenerateVisuals}
-                disabled={isGeneratingVisuals || isDeepSearching}
-                className="flex items-center justify-center gap-2 px-6 py-2 bg-green-600 text-white font-semibold rounded-full hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                </svg>
-                Generate Satellite Comparison
-              </button>
+                <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
+                  <div className="flex flex-wrap items-center gap-4">
+                     <button
+                        onClick={handleGenerateClick}
+                        disabled={isGeneratingVisuals || isDeepSearching || !isCustomYearsValid}
+                        className="flex items-center justify-center gap-2 px-6 py-2 bg-green-600 text-white font-semibold rounded-full hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex-grow sm:flex-grow-0"
+                        aria-label={`Generate satellite comparison from ${startYear} to ${endYear}`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
+                        Generate Satellite Comparison
+                      </button>
+                      <button
+                        onClick={() => setIsAdvancedSettingsOpen(!isAdvancedSettingsOpen)}
+                        disabled={isGeneratingVisuals || isDeepSearching}
+                        className="flex items-center justify-center gap-2 p-2 bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200 font-semibold rounded-full hover:bg-gray-300 dark:hover:bg-gray-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Toggle advanced image generation settings"
+                        aria-expanded={isAdvancedSettingsOpen}
+                      >
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>
+                      </button>
+                    </div>
+                    {isAdvancedSettingsOpen && (
+                       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 animate-fade-in">
+                          <h5 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">Custom Year Comparison</h5>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                  <label htmlFor="start-year" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Start Year</label>
+                                  <select
+                                    id="start-year"
+                                    value={startYear}
+                                    onChange={handleStartYearChange}
+                                    className="block w-full p-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-green-500 dark:focus:border-green-500"
+                                  >
+                                    {availableYears.slice(0, -1).map(year => (
+                                      <option key={year} value={year}>{year}</option>
+                                    ))}
+                                  </select>
+                              </div>
+                              <div>
+                                  <label htmlFor="end-year" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">End Year</label>
+                                  <select
+                                    id="end-year"
+                                    value={endYear}
+                                    onChange={handleEndYearChange}
+                                    className="block w-full p-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-green-500 dark:focus:border-green-500"
+                                  >
+                                    {availableYears.filter(y => y > startYear).map(year => (
+                                      <option key={year} value={year}>{year}</option>
+                                    ))}
+                                  </select>
+                              </div>
+                          </div>
+                          {!isCustomYearsValid && <p className="text-xs text-red-500 mt-2">End year must be after start year.</p>}
+                       </div>
+                    )}
+                </div>
             )}
 
             {!deepSearchResult && (
