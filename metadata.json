@@ -1,0 +1,5 @@
+{
+  "name": "ForestWatch AI",
+  "description": "An AI-powered web application that analyzes and reports on deforestation in major forests using real-time data synthesis from Google's Gemini API.",
+  "requestFramePermissions": []
+}
