@@ -1,14 +1,13 @@
+
 import { GoogleGenAI } from "@google/genai";
 import type { DeforestationData, DataSource } from '../types';
 import { DeforestationStatus } from '../types';
 
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
+// FIX: Updated to use process.env.API_KEY directly in initialization as per guidelines.
+if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set.");
 }
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const fetchDeforestationData = async (forestName: string): Promise<DeforestationData> => {
   const prompt = `
@@ -25,11 +24,13 @@ export const fetchDeforestationData = async (forestName: string): Promise<Defore
       "timePeriod": "string (e.g., '2015-2023')",
       "estimatedInitialArea": "string (The estimated total forest area in sq km at the beginning of the time period, e.g., 'approx. 6,000,000 sq km')",
       "chartData": [ { "year": "number", "loss": "number" } ],
+      "deforestationDrivers": [ { "reason": "string (e.g., 'Cattle Ranching', 'Soy Cultivation', 'Logging', 'Wildfires')", "percentage": "number" } ],
       "sources": [ { "title": "string", "url": "string" } ]
     }
     IMPORTANT: The 'chartData' array must contain a data point for EVERY SINGLE YEAR within the specified 'timePeriod'. If data for a specific year is unavailable from sources, you can estimate it based on the trend or report it as zero, but the year must be present to ensure a complete graph.
+    In addition, identify the primary drivers of deforestation (e.g., agriculture, logging, mining, wildfires) for this forest over the analyzed period and populate the 'deforestationDrivers' array. The percentages should be your best estimate based on the sources and should ideally sum to 100, but approximations are acceptable.
     Synthesize information from the search results to populate all fields. The 'sources' array in the JSON should include any primary sources you identified within the search results.
-    Do not invent data. If a specific piece of information isn't in the search results, reflect that appropriately (e.g., an empty array for chartData, or a note in the summary).
+    Do not invent data. If a specific piece of information isn't in the search results, reflect that appropriately (e.g., an empty array for chartData or deforestationDrivers, or a note in the summary).
   `;
 
   try {
@@ -42,14 +43,21 @@ export const fetchDeforestationData = async (forestName: string): Promise<Defore
       },
     });
 
-    // Extract JSON from the response text, removing markdown backticks if present
-    let jsonText = response.text.trim();
-    if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.substring(7, jsonText.length - 3).trim();
-    } else if (jsonText.startsWith('```')) {
-      jsonText = jsonText.substring(3, jsonText.length - 3).trim();
+    // FIX: More robust JSON extraction to handle extraneous text or markdown from the model.
+    // This finds the first '{' and last '}' to isolate the JSON object.
+    const responseText = response.text.trim();
+    const jsonStart = responseText.indexOf('{');
+    const jsonEnd = responseText.lastIndexOf('}');
+
+    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
+        console.error("Invalid response format from AI:", responseText);
+        throw new Error("The AI response did not contain a valid JSON object.");
     }
+    
+    const jsonText = responseText.substring(jsonStart, jsonEnd + 1);
+    
     const parsedData = JSON.parse(jsonText) as DeforestationData;
+
 
     // Extract sources from grounding metadata provided by Google Search
     const groundingSources: DataSource[] = [];
@@ -76,6 +84,7 @@ export const fetchDeforestationData = async (forestName: string): Promise<Defore
         !parsedData.status ||
         !parsedData.conclusion ||
         !parsedData.estimatedInitialArea ||
+        !Array.isArray(parsedData.deforestationDrivers) ||
         !Object.values(DeforestationStatus).includes(parsedData.status)
     ) {
         throw new Error('AI response is missing required fields or has an invalid status.');
@@ -113,16 +122,19 @@ export const generateVisualEvidence = async (
     const initialArea = parseArea(analysisData.estimatedInitialArea);
     const percentageLoss = initialArea > 0 ? (totalLoss / initialArea) * 100 : 0;
 
-    // A textual representation of the loss for the prompt
-    let lossDescription = `The deforestation level is significant.`;
-    if (analysisData.status === DeforestationStatus.STABLE || percentageLoss === 0) {
-        lossDescription = `The forest is mostly stable with minimal to no visible deforestation.`
-    } else if (percentageLoss > 0 && percentageLoss <= 5) {
-        lossDescription = `The deforestation is noticeable but minor, with about ${percentageLoss.toFixed(1)}% of the area affected.`;
-    } else if (percentageLoss > 5 && percentageLoss <= 20) {
-        lossDescription = `The deforestation is significant, with visible clearing affecting around ${percentageLoss.toFixed(1)}% of the area.`;
-    } else if (percentageLoss > 20) {
-        lossDescription = `The deforestation is severe and widespread, with over ${percentageLoss.toFixed(1)}% of the area cleared.`;
+    let lossDescription: string;
+    const roundedPercentage = parseFloat(percentageLoss.toFixed(1));
+
+    if (roundedPercentage <= 1) {
+        lossDescription = `The forest is healthy and stable with almost no change. Instruct the image model to show only imperceptible differences, perhaps a very slight lightening of green in one or two small spots. The change should NOT be obvious.`;
+    } else if (roundedPercentage > 1 && roundedPercentage <= 5) {
+        lossDescription = `The deforestation is minor but present. Instruct the image model to show small, scattered patches of light brown, exposed earth, indicating some agricultural clearing or logging. The overall canopy must remain mostly dense. The change should be noticeable upon inspection.`;
+    } else if (roundedPercentage > 5 && roundedPercentage <= 15) {
+        lossDescription = `The deforestation is clear and significant. Instruct the image model to show multiple, noticeable patches of brown, cleared land. Some of these patches should connect into larger clearings. The forest edge should appear fragmented or "eaten away" in some areas.`;
+    } else if (roundedPercentage > 15 && roundedPercentage <= 30) {
+        lossDescription = `The deforestation is widespread and severe. Instruct the image model to render large swathes of the green canopy replaced by brown and yellow earth. A visible network of thin logging roads is essential. The contrast between before and after must be stark.`;
+    } else { // > 30%
+        lossDescription = `The deforestation is dramatic and extreme. Instruct the image model to show a landscape that is visibly scarred. A "fishbone" pattern of roads and massive clearings should dominate the 'after' image. More than a third of the green canopy must be visibly gone, replaced by huge expanses of bare earth, representing industrial-scale agriculture. The visual impact should be shocking.`;
     }
 
   // Step 1: Generate a high-quality prompt for the image model that is specific to the forest type.
@@ -135,7 +147,7 @@ export const generateVisualEvidence = async (
   
   - Incorporate the specific visual characteristics you identified. For example, if it's the Amazon, mention "dense tropical canopy and a meandering river". If it's the Congo, "vast swathes of dark green, humid rainforest".
   - The 'before' image (left side) should depict the forest from around ${startYear}, showing a lush, dense, and vibrant green canopy under a clear sky, true to its biome.
-  - The 'after' image (right side) should depict the same area towards ${endYear}. It MUST visually represent the calculated data for the overall period. The prompt must instruct the AI that: "${lossDescription}". This means showing signs of deforestation like cleared patches (exposed, brownish earth), logging roads, or reduced tree density that are proportional to this level of loss. The visual change must be consistent with the data provided, not exaggerated.
+  - The 'after' image (right side) must depict the same area around ${endYear}. The visual change MUST be a direct and unambiguous representation of the deforestation data. It is critical to get this right. Your prompt to the image model must contain the following specific instructions: "${lossDescription}". Emphasize that the visual cues described (like 'brown patches', 'logging roads', 'fishbone pattern') are not optional and must be rendered clearly. The visual contrast between the two sides of the image is the entire point.
   - The style must be "ultra-realistic 4k satellite photography". Emphasize the stark visual contrast.
   - Include small, unobtrusive text labels 'Before: ~${startYear}' and 'After: ~${endYear}' on their respective sides.
 

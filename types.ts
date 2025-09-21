@@ -15,6 +15,11 @@ export interface DataSource {
   url: string;
 }
 
+export interface DeforestationDriver {
+  reason: string;
+  percentage: number;
+}
+
 export interface DeforestationData {
   forestName: string;
   status: DeforestationStatus;
@@ -24,5 +29,6 @@ export interface DeforestationData {
   timePeriod: string; // e.g., "2015-2023"
   estimatedInitialArea: string; // e.g., "approx. 6,000,000 sq km"
   chartData: ChartDataPoint[];
+  deforestationDrivers: DeforestationDriver[];
   sources: DataSource[];
 }

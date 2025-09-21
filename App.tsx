@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
@@ -39,7 +40,8 @@ const App: React.FC = () => {
   const [awarenessMessage, setAwarenessMessage] = useState(awarenessMessages[0]);
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    // FIX: Replaced NodeJS.Timeout with ReturnType<typeof setTimeout> for browser compatibility.
+    let timeout: ReturnType<typeof setTimeout>;
     if (isLoading) {
       let messageIndex = 0;
       setAwarenessMessage(awarenessMessages[0]); // Start with the first message

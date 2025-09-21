@@ -8,6 +8,14 @@ export const LiveCounter: React.FC = () => {
   const [hectaresLost, setHectaresLost] = useState(0);
 
   useEffect(() => {
+    // Calculate initial loss since the beginning of the current year for a more realistic counter
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const secondsSinceYearStart = (now.getTime() - startOfYear.getTime()) / 1000;
+    const initialHectaresLost = secondsSinceYearStart * HECTARES_PER_SECOND;
+    
+    setHectaresLost(initialHectaresLost);
+
     const interval = setInterval(() => {
       setHectaresLost(prevHectares => prevHectares + HECTARES_PER_SECOND);
     }, 1000);
@@ -18,10 +26,10 @@ export const LiveCounter: React.FC = () => {
   return (
     <div className="mt-12 p-4 bg-gray-100 dark:bg-gray-800/50 rounded-lg max-w-sm mx-auto animate-fade-in">
         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-            Estimated Global Primary Forest Lost Since You Visited
+            Estimated Global Primary Forest Lost This Year
         </p>
         <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-            {hectaresLost.toFixed(2)}
+            {hectaresLost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </p>
         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
             Hectares

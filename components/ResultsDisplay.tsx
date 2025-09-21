@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { DeforestationData } from '../types';
 import { DeforestationStatus } from '../types';
 import { DeforestationChart } from './DeforestationChart';
+import { DeforestationPieChart } from './DeforestationPieChart';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface ResultsDisplayProps {
   data: DeforestationData;
@@ -42,6 +45,10 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
   onOpenVisualsModal
 }) => {
   const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const pieChartContainerRef = useRef<HTMLDivElement>(null);
   
   const availableYears = data.chartData?.map(d => d.year).sort((a, b) => a - b) || [];
   const [startYear, setStartYear] = useState<number>(availableYears[0]);
@@ -78,6 +85,103 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
     }
   };
 
+  const handleExport = async () => {
+    if (!data || !chartContainerRef.current) {
+        console.error("Data or chart reference not available for export.");
+        return;
+    };
+    setIsExporting(true);
+
+    try {
+        const doc = new jsPDF('p', 'pt', 'a4');
+        const margin = 40;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const contentWidth = pageWidth - margin * 2;
+        let yPos = margin;
+
+        const addText = (text: string, size: number, style: 'normal' | 'bold' = 'normal', color: string = '#000000', x: number = margin) => {
+            doc.setFontSize(size);
+            doc.setFont('helvetica', style);
+            doc.setTextColor(color);
+            const lines = doc.splitTextToSize(text, contentWidth);
+            if (yPos + lines.length * size * 0.7 > pageHeight - margin) {
+                doc.addPage();
+                yPos = margin;
+            }
+            doc.text(lines, x, yPos);
+            yPos += (lines.length * size * 0.7) + (size / 2);
+        };
+
+        addText(`ForestWatch AI Report`, 24, 'bold', '#16a34a');
+        yPos += 10;
+        addText(data.forestName, 18, 'bold');
+        yPos += 10;
+
+        addText('AI Summary', 14, 'bold', '#374151');
+        addText(data.summary, 10);
+        yPos += 10;
+
+        addText('Key Statistics', 14, 'bold', '#374151');
+        addText(`- Time Period Analyzed: ${data.timePeriod}`, 10);
+        addText(`- Total Area Lost: ${data.areaLost}`, 10);
+        addText(`- Estimated Initial Area: ${data.estimatedInitialArea}`, 10);
+        yPos += 10;
+        
+        // Add Bar Chart
+        addText('Annual Tree Cover Loss (sq km)', 14, 'bold', '#374151');
+        const chartCanvas = await html2canvas(chartContainerRef.current, { scale: 2, backgroundColor: '#ffffff' });
+        const chartImgData = chartCanvas.toDataURL('image/png');
+        const imgProps = doc.getImageProperties(chartImgData);
+        const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
+        if (yPos + imgHeight > pageHeight - margin) {
+            doc.addPage();
+            yPos = margin;
+        }
+        doc.addImage(chartImgData, 'PNG', margin, yPos, contentWidth, imgHeight);
+        yPos += imgHeight + 20;
+
+        // Add Pie Chart if available
+        if (data.deforestationDrivers && data.deforestationDrivers.length > 0 && pieChartContainerRef.current) {
+             if (yPos + 250 > pageHeight - margin) { // Approximate height for title and pie chart
+                doc.addPage();
+                yPos = margin;
+            }
+            addText('Primary Deforestation Drivers (Overall)', 14, 'bold', '#374151');
+            const pieCanvas = await html2canvas(pieChartContainerRef.current, { scale: 2, backgroundColor: '#ffffff' });
+            const pieImgData = pieCanvas.toDataURL('image/png');
+            const pieProps = doc.getImageProperties(pieImgData);
+            const pieHeight = (pieProps.height * contentWidth) / pieProps.width;
+            doc.addImage(pieImgData, 'PNG', margin, yPos, contentWidth, pieHeight);
+            yPos += pieHeight + 20;
+        }
+
+        // Add Conclusion
+        addText('AI Conclusion', 14, 'bold', '#374151');
+        addText(data.conclusion, 10);
+        yPos += 10;
+
+        // Add Sources
+        if (data.sources && data.sources.length > 0) {
+            if (yPos + 40 > pageHeight - margin) {
+                doc.addPage();
+                yPos = margin;
+            }
+            addText('Data Sources', 14, 'bold', '#374151');
+            data.sources.forEach(source => {
+                addText(`- ${source.title}: ${source.url}`, 8, 'normal', '#1d4ed8');
+            });
+        }
+        
+        doc.save(`${data.forestName.replace(/\s+/g, '_')}_Report.pdf`);
+    } catch (error) {
+        console.error("Error generating PDF:", error);
+    } finally {
+        setIsExporting(false);
+    }
+  };
+
+
   return (
     <div className="w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
@@ -108,9 +212,17 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
 
         {data.chartData && data.chartData.length > 0 && (
           <div>
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">Annual Tree Cover Loss (sq km) & Trend</h3>
-            <div className="h-64 w-full bg-gray-50 dark:bg-gray-700/30 p-2 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">Annual Tree Cover Loss (sq km)</h3>
+            <div ref={chartContainerRef} className="h-64 w-full bg-gray-50 dark:bg-gray-700/30 p-2 rounded-lg">
               <DeforestationChart data={data.chartData} />
+            </div>
+          </div>
+        )}
+        {data.deforestationDrivers && data.deforestationDrivers.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">Primary Deforestation Drivers (Overall)</h3>
+            <div ref={pieChartContainerRef} className="h-80 w-full bg-gray-50 dark:bg-gray-700/30 p-2 rounded-lg">
+              <DeforestationPieChart data={data.deforestationDrivers} />
             </div>
           </div>
         )}
@@ -127,13 +239,13 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
         
         <div className="border-t dark:border-gray-700 pt-6">
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-3">Advanced Tools</h3>
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-4 items-start">
             {!visualEvidenceImageUrl && !isGeneratingVisuals && (
-                <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
+                <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg flex-grow">
                   <div className="flex flex-wrap items-center gap-4">
                      <button
                         onClick={handleGenerateClick}
-                        disabled={isGeneratingVisuals || isDeepSearching || !isCustomYearsValid}
+                        disabled={isGeneratingVisuals || isDeepSearching || !isCustomYearsValid || isExporting}
                         className="flex items-center justify-center gap-2 px-6 py-2 bg-green-600 text-white font-semibold rounded-full hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex-grow sm:flex-grow-0"
                         aria-label={`Generate satellite comparison from ${startYear} to ${endYear}`}
                       >
@@ -142,7 +254,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                       </button>
                       <button
                         onClick={() => setIsAdvancedSettingsOpen(!isAdvancedSettingsOpen)}
-                        disabled={isGeneratingVisuals || isDeepSearching}
+                        disabled={isGeneratingVisuals || isDeepSearching || isExporting}
                         className="flex items-center justify-center gap-2 p-2 bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200 font-semibold rounded-full hover:bg-gray-300 dark:hover:bg-gray-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                         aria-label="Toggle advanced image generation settings"
                         aria-expanded={isAdvancedSettingsOpen}
@@ -186,20 +298,33 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                     )}
                 </div>
             )}
+            
+            <div className="flex flex-col gap-4">
+                {!deepSearchResult && (
+                   <button
+                      onClick={onDeepSearch}
+                      disabled={isDeepSearching || isGeneratingVisuals || isExporting}
+                      className="flex items-center justify-center gap-2 px-6 py-2 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z" />
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a4 4 0 00-3.446 6.032l-2.261 2.26a1 1 0 101.414 1.415l2.261-2.261A4 4 0 1011 5z" clipRule="evenodd" />
+                      </svg>
+                      Deep Research
+                    </button>
+                )}
 
-            {!deepSearchResult && (
-               <button
-                  onClick={onDeepSearch}
-                  disabled={isDeepSearching || isGeneratingVisuals}
-                  className="flex items-center justify-center gap-2 px-6 py-2 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                <button
+                  onClick={handleExport}
+                  disabled={isDeepSearching || isGeneratingVisuals || isExporting}
+                  className="flex items-center justify-center gap-2 px-6 py-2 bg-purple-600 text-white font-semibold rounded-full hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z" />
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a4 4 0 00-3.446 6.032l-2.261 2.26a1 1 0 101.414 1.415l2.261-2.261A4 4 0 1011 5z" clipRule="evenodd" />
-                  </svg>
-                  Deep Research
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
+                    </svg>
+                  {isExporting ? 'Exporting...' : 'Export Report'}
                 </button>
-            )}
+            </div>
           </div>
 
           {isGeneratingVisuals && (
